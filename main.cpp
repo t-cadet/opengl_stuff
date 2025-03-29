@@ -10,6 +10,44 @@ using namespace std;
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/ptrace.h>
+
+void GlClearErrors() {
+    while (glGetError());
+}
+
+bool IsDebuggerPresent()
+{
+    static bool underDebugger = false;
+    static bool isCheckedAlready = false;
+
+    if (!isCheckedAlready)
+    {
+        if (ptrace(PTRACE_TRACEME, 0, 1, 0) < 0) {
+             underDebugger = true;
+        } else {
+            ptrace(PTRACE_DETACH, 0, 1, 0);
+        }
+        isCheckedAlready = true;
+    }
+    return underDebugger;
+}
+
+void GlPrintErrors(const char* file, const int line, const char* message) {
+    while (GLenum error = glGetError()) {
+        cerr << "[GL_CHECK ERROR] " << file << ":" << line << " " << message << ": " << hex << error << "\n";
+        if (IsDebuggerPresent()) {
+            __builtin_debugtrap();
+        }
+    }
+}
+
+#define GL_CHECK(x) \
+    if (true) { \
+        GlClearErrors(); \
+        x; \
+        GlPrintErrors(__FILE__, __LINE__, #x); \
+    } else
 
 long GetFileSize(FILE* file) {
     if (fseek(file, 0, SEEK_END) == -1) {
@@ -150,7 +188,7 @@ int main(void)
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
