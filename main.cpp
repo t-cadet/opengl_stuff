@@ -1,6 +1,8 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#include <cassert>
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -144,6 +146,7 @@ int main(void)
 
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
 
     if (auto ok = glewInit(); ok != GLEW_OK) {
         cerr << "glewInit failed: " << glewGetErrorString(ok) << "\n";
@@ -182,12 +185,20 @@ int main(void)
     unsigned int glProgram = CreateGlProgram(vertexShaderSource, fragmentShaderSource);
     glUseProgram(glProgram);
 
-    /* Loop until the user closes the window */
+    int uColorLocation = glGetUniformLocation(glProgram, "uColor");
+    assert(uColorLocation != -1);
+
+    float dt = 0.0f;
     while (!glfwWindowShouldClose(window))
     {
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
+        float sinDt1 = (1.0f + sinf(1*dt)) / 2.0f;
+        float sinDt2 = (1.0f + sinf(2*dt)) / 2.0f;
+        float sinDt3 = (1.0f + sinf(3*dt)) / 2.0f;
+
+        glUniform4f(uColorLocation, sinDt1, sinDt2, sinDt3, 1.0f);
         GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
         /* Swap front and back buffers */
@@ -195,6 +206,7 @@ int main(void)
 
         /* Poll for and process events */
         glfwPollEvents();
+        dt += 1.0f/60.0f;
     }
 
     glDeleteProgram(glProgram);
