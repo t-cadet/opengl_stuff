@@ -128,6 +128,13 @@ unsigned int CreateGlProgram(string& vertexShader, string& fragmentShader) {
     return program;
 }
 
+unsigned int CreateGlVertexArray() {
+    unsigned int vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+    return vao;
+}
+
 unsigned int CreateGlBufferEx(void* data, size_t byteSize, GLenum target) {
     unsigned int buffer;
     glGenBuffers(1, &buffer);
@@ -136,6 +143,18 @@ unsigned int CreateGlBufferEx(void* data, size_t byteSize, GLenum target) {
     return buffer;
 }
 #define CreateGlBuffer(data, target) CreateGlBufferEx(data, sizeof(data), target)
+
+void EnableGlVertexAttribArray(GLenum target, size_t count) {
+    size_t targetSize = 0;
+    switch (target) {
+        case GL_FLOAT: targetSize = 4; break;
+        default: assert(false && "unknown targetSize");
+    }
+    assert(targetSize && "unknown targetSize");
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, count, target, GL_FALSE, count*targetSize, 0);
+}
 
 int main(void)
 {
@@ -179,14 +198,9 @@ int main(void)
         2, 3, 0,
     };
 
-    unsigned int vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
+    unsigned int vao = CreateGlVertexArray();
     unsigned int vertexBuffer = CreateGlBuffer(positions, GL_ARRAY_BUFFER);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), 0);
+    EnableGlVertexAttribArray(GL_FLOAT, 2);
 
     unsigned int indexBuffer = CreateGlBuffer(indices, GL_ELEMENT_ARRAY_BUFFER);
 
