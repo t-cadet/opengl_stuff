@@ -1,6 +1,10 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#define STBI_FAILURE_USERMSG
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -13,6 +17,60 @@ using namespace std;
 #include <stdlib.h>
 #include <stdint.h>
 #include <sys/ptrace.h>
+
+struct Image {
+  int w, h;
+  int channels;
+  unsigned char* data;
+};
+
+Image ReadImage(const char* path) {
+    Image img = {};
+    img.data = stbi_load(path, &img.w, &img.h, &img.channels, 0);
+    if (!img.data) {
+      printf("ReadImage failed: %s\n", stbi_failure_reason());
+      exit(1);
+    }
+    return img;
+}
+
+void FreeImage(Image const& img) {
+    stbi_image_free(img.data);
+}
+
+unsigned int LoadGlTexture(Image img, unsigned int slot = 0) {
+    unsigned int texture;
+
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    GLenum format;
+    GLenum internalFormat;
+
+    if (img.channels == 1) {
+        format = GL_RED;
+        internalFormat = GL_R8;
+    } else if (img.channels == 3) {
+        format = GL_RGB;
+        internalFormat = GL_RGB8;
+    } else if (img.channels == 4) {
+        format = GL_RGBA;
+        internalFormat = GL_RGBA8;
+    } else {
+        cerr << "Unsupported channel count: " << img.channels << endl;
+        exit(1);
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, img.w, img.h, 0, format, GL_UNSIGNED_BYTE, img.data);
+    glActiveTexture(GL_TEXTURE0 + slot);
+
+    return texture;
+}
 
 void GlClearErrors() {
     while (glGetError());
@@ -106,6 +164,7 @@ unsigned int CreateGlShader(unsigned int type, string& sourceCode) {
         glGetShaderInfoLog(shader, len, &len, message);
         const char* shaderTypeStr = type == GL_VERTEX_SHADER ? "vertex" : (type == GL_FRAGMENT_SHADER ? "fragment" : "unknown");
         cerr << "ERROR: CompileShader (" << shaderTypeStr << "): " << message << "\n";
+        exit(1);
     }
 
     return shader;
@@ -119,6 +178,18 @@ unsigned int CreateGlProgram(string& vertexShader, string& fragmentShader) {
     glAttachShader(program, vs);
     glAttachShader(program, fs);
     glLinkProgram(program);
+
+    int result;
+    glGetProgramiv(program, GL_LINK_STATUS, &result);
+    if (!result) {
+        int len;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
+        char* message = (char*)alloca(len * sizeof(char));
+        glGetProgramInfoLog(program, len, &len, message);
+        cerr << "ERROR: LinkProgram: " << message << "\n";
+        exit(1);
+    }
+
     glValidateProgram(program);
 
     // FIXME: detach shaders too?
@@ -129,10 +200,10 @@ unsigned int CreateGlProgram(string& vertexShader, string& fragmentShader) {
 }
 
 unsigned int CreateGlVertexArray() {
-    unsigned int vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-    return vao;
+    unsigned int va;
+    glGenVertexArrays(1, &va);
+    glBindVertexArray(va);
+    return va;
 }
 
 unsigned int CreateGlBufferEx(void* data, size_t byteSize, GLenum target) {
@@ -144,7 +215,7 @@ unsigned int CreateGlBufferEx(void* data, size_t byteSize, GLenum target) {
 }
 #define CreateGlBuffer(data, target) CreateGlBufferEx(data, sizeof(data), target)
 
-void EnableGlVertexAttribArray(GLenum target, size_t count) {
+size_t EnableGlVertexAttribArray(unsigned int index, GLenum target, size_t count, size_t stride, size_t offset = 0) {
     size_t targetSize = 0;
     switch (target) {
         case GL_FLOAT: targetSize = 4; break;
@@ -152,8 +223,10 @@ void EnableGlVertexAttribArray(GLenum target, size_t count) {
     }
     assert(targetSize && "unknown targetSize");
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, count, target, GL_FALSE, count*targetSize, 0);
+    size_t totalSize = count*targetSize;
+    glEnableVertexAttribArray(index);
+    glVertexAttribPointer(index, count, target, GL_FALSE, stride*targetSize, (void*)offset);
+    return totalSize;
 }
 
 int main(void)
@@ -186,21 +259,25 @@ int main(void)
     }
     cerr << "GL_VERSION=" << glGetString(GL_VERSION) << "\n";
 
-    float positions[8] = {
-        -0.5, +0.5,
-        -0.5, -0.5,
-        +0.5, -0.5,
-        +0.5, +0.5,
+    float positions[] = {
+        -0.5, +0.5, 0.0, 1.0,
+        -0.5, -0.5, 0.0, 0.0,
+        +0.5, -0.5, 1.0, 0.0,
+        +0.5, +0.5, 1.0, 1.0,
     };
 
-    unsigned int indices[6] = {
+    unsigned int indices[] = {
         0, 1, 2,
         2, 3, 0,
     };
 
-    unsigned int vao = CreateGlVertexArray();
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    unsigned int va = CreateGlVertexArray();
     unsigned int vertexBuffer = CreateGlBuffer(positions, GL_ARRAY_BUFFER);
-    EnableGlVertexAttribArray(GL_FLOAT, 2);
+    size_t attribOffset = EnableGlVertexAttribArray(0, GL_FLOAT, 2, 4);
+    attribOffset += EnableGlVertexAttribArray(1, GL_FLOAT, 2, 4, attribOffset);
 
     unsigned int indexBuffer = CreateGlBuffer(indices, GL_ELEMENT_ARRAY_BUFFER);
 
@@ -210,13 +287,25 @@ int main(void)
     unsigned int glProgram = CreateGlProgram(vertexShaderSource, fragmentShaderSource);
     glUseProgram(glProgram);
 
-    int uColorLocation = glGetUniformLocation(glProgram, "uColor");
-    assert(uColorLocation != -1);
+    // int uColorLocation = glGetUniformLocation(glProgram, "uColor");
+    // assert(uColorLocation != -1);
 
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glUseProgram(0);
+    stbi_set_flip_vertically_on_load(1);
+    Image img = ReadImage("logo.jpg");
+
+    unsigned int textureSlot = 0;
+    unsigned int texture = LoadGlTexture(img, textureSlot);
+    assert(texture > 0);
+    FreeImage(img);
+
+    int uTextureLocation = glGetUniformLocation(glProgram, "uTexture");
+    assert(uTextureLocation != -1);
+    glUniform1i(uTextureLocation, textureSlot);
+
+    // glBindVertexArray(0);
+    // glBindBuffer(GL_ARRAY_BUFFER, 0);
+    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    // glUseProgram(0);
 
     float dt = 0.0f;
     while (!glfwWindowShouldClose(window))
@@ -228,9 +317,9 @@ int main(void)
         float sinDt2 = (1.0f + sinf(2*dt)) / 2.0f;
         float sinDt3 = (1.0f + sinf(3*dt)) / 2.0f;
 
-        glBindVertexArray(vao);
+        glBindVertexArray(va);
         glUseProgram(glProgram);
-        glUniform4f(uColorLocation, sinDt1, sinDt2, sinDt3, 1.0f);
+        // glUniform4f(uColorLocation, sinDt1, sinDt2, sinDt3, 1.0f);
 
         GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
@@ -242,6 +331,7 @@ int main(void)
         dt += 1.0f/60.0f;
     }
 
+    glDeleteTextures(1, &texture);
     glDeleteProgram(glProgram);
 
     glfwTerminate();
