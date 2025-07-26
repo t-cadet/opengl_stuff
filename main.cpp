@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <initializer_list>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -22,6 +23,10 @@ struct Image {
   int w, h;
   int channels;
   unsigned char* data;
+};
+
+struct GlVertexAttrib {
+    unsigned int glType, count;
 };
 
 Image ReadImage(const char* path) {
@@ -215,18 +220,31 @@ unsigned int CreateGlBufferEx(void* data, size_t byteSize, GLenum target) {
 }
 #define CreateGlBuffer(data, target) CreateGlBufferEx(data, sizeof(data), target)
 
-size_t EnableGlVertexAttribArray(unsigned int index, GLenum target, size_t count, size_t stride, size_t offset = 0) {
-    size_t targetSize = 0;
-    switch (target) {
-        case GL_FLOAT: targetSize = 4; break;
+unsigned int GetGlTypeSize(unsigned int glType) {
+    unsigned int glTypeSize = 0;
+    switch (glType) {
+        case GL_FLOAT: glTypeSize = 4; break;
         default: assert(false && "unknown targetSize");
     }
-    assert(targetSize && "unknown targetSize");
+    return glTypeSize;
+}
 
-    size_t totalSize = count*targetSize;
-    glEnableVertexAttribArray(index);
-    glVertexAttribPointer(index, count, target, GL_FALSE, stride*targetSize, (void*)offset);
-    return totalSize;
+void EnableGlVertexAttribArray(initializer_list<GlVertexAttrib> vertexAttributes) {
+    unsigned int stride = 0;
+    for (auto const& attrib : vertexAttributes) {
+        stride += attrib.count*GetGlTypeSize(attrib.glType);
+    }
+
+    size_t offset = 0;
+    unsigned int i = 0;
+    for (auto const& attrib : vertexAttributes) {
+        glEnableVertexAttribArray(i);
+        glVertexAttribPointer(i, attrib.count, attrib.glType, GL_FALSE, stride, (void*)offset);
+        offset += attrib.count*GetGlTypeSize(attrib.glType);
+        ++i;
+    }
+
+    assert(offset == stride);
 }
 
 int main(void)
@@ -276,8 +294,10 @@ int main(void)
 
     unsigned int va = CreateGlVertexArray();
     unsigned int vertexBuffer = CreateGlBuffer(positions, GL_ARRAY_BUFFER);
-    size_t attribOffset = EnableGlVertexAttribArray(0, GL_FLOAT, 2, 4);
-    attribOffset += EnableGlVertexAttribArray(1, GL_FLOAT, 2, 4, attribOffset);
+    EnableGlVertexAttribArray({
+        {GL_FLOAT, 2},
+        {GL_FLOAT, 2},
+    });
 
     unsigned int indexBuffer = CreateGlBuffer(indices, GL_ELEMENT_ARRAY_BUFFER);
 
