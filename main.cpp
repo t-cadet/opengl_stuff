@@ -260,7 +260,7 @@ int main(void)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(480, 480, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(400, 300, "Hello World", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -321,6 +321,16 @@ int main(void)
     int uTextureLocation = glGetUniformLocation(glProgram, "uTexture");
     assert(uTextureLocation != -1);
     glUniform1i(uTextureLocation, textureSlot);
+
+    float mvp[16] = {
+        1.5, 0.0, 0.0, 0.0,
+        0.0, 2.0, 0.0, 0.0,
+        0.0, 0.0, 1.5, 0.0,
+        0.0, 0.0, 0.0, 2.0,
+    };
+    int uMvpLocation = glGetUniformLocation(glProgram, "uMvp");
+    assert(uMvpLocation != -1);
+    glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp[0]);
 
     // glBindVertexArray(0);
     // glBindBuffer(GL_ARRAY_BUFFER, 0);
