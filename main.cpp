@@ -5,6 +5,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_opengl3.h"
+
 #include <cassert>
 #include <cmath>
 #include <initializer_list>
@@ -27,6 +31,13 @@ struct Image {
 
 struct GlVertexAttrib {
     unsigned int glType, count;
+};
+
+struct ImguiDemoState {
+    bool show_demo_window;
+    bool show_another_window;
+    ImVec4 clear_color;
+    ImGuiIO* io;
 };
 
 Image ReadImage(const char* path) {
@@ -247,6 +258,45 @@ void EnableGlVertexAttribArray(initializer_list<GlVertexAttrib> vertexAttributes
     assert(offset == stride);
 }
 
+void DisplayImguiDemo(ImguiDemoState& state) {
+    // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+    if (state.show_demo_window)
+        ImGui::ShowDemoWindow(&state.show_demo_window);
+
+    // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+    {
+        static float f = 0.0f;
+        static int counter = 0;
+
+        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+        ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+        ImGui::Checkbox("Demo Window", &state.show_demo_window);      // Edit bools storing our window open/close state
+        ImGui::Checkbox("Another Window", &state.show_another_window);
+
+        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+        ImGui::ColorEdit3("clear color", (float*)&state.clear_color); // Edit 3 floats representing a color
+
+        if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+            counter++;
+        ImGui::SameLine();
+        ImGui::Text("counter = %d", counter);
+
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / state.io->Framerate, state.io->Framerate);
+        ImGui::End();
+    }
+
+    // 3. Show another simple window.
+    if (state.show_another_window)
+    {
+        ImGui::Begin("Another Window", &state.show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+        ImGui::Text("Hello from another window!");
+        if (ImGui::Button("Close Me"))
+            state.show_another_window = false;
+        ImGui::End();
+    }
+}
+
 int main(void)
 {
     GLFWwindow* window;
@@ -255,12 +305,13 @@ int main(void)
     if (!glfwInit())
         return -1;
 
+    const char* glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(400, 300, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(1200, 900, "Hello World", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -276,6 +327,31 @@ int main(void)
         return 1;
     }
     cerr << "GL_VERSION=" << glGetString(GL_VERSION) << "\n";
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // // Setup scaling
+    // ImGuiStyle& style = ImGui::GetStyle();
+    // style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    // style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
+    ImguiDemoState imguiDemoState = {};
+    imguiDemoState.show_demo_window = true;
+    imguiDemoState.show_another_window = false;
+    imguiDemoState.clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    imguiDemoState.io = &io;
 
     float positions[] = {
         -0.5, +0.5, 0.0, 1.0,
@@ -322,15 +398,10 @@ int main(void)
     assert(uTextureLocation != -1);
     glUniform1i(uTextureLocation, textureSlot);
 
-    float mvp[16] = {
-        1.5, 0.0, 0.0, 0.0,
-        0.0, 2.0, 0.0, 0.0,
-        0.0, 0.0, 1.5, 0.0,
-        0.0, 0.0, 0.0, 2.0,
-    };
+    float scaleX = 0.0;
+    float scaleY = 0.0;
     int uMvpLocation = glGetUniformLocation(glProgram, "uMvp");
     assert(uMvpLocation != -1);
-    glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp[0]);
 
     // glBindVertexArray(0);
     // glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -351,7 +422,33 @@ int main(void)
         glUseProgram(glProgram);
         // glUniform4f(uColorLocation, sinDt1, sinDt2, sinDt3, 1.0f);
 
+        float mvp[16] = {
+            1.5f + scaleX, 0.0          , 0.0, 0.0,
+            0.0          , 2.0f + scaleY, 0.0, 0.0,
+            0.0          , 0.0          , 1.5, 0.0,
+            0.0          , 0.0          , 0.0, 2.0,
+        };
+        glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp[0]);
+
         GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // DisplayImguiDemo(imguiDemoState);
+        {
+            ImGui::Begin("Hello, world!");
+            ImGui::SliderFloat("scale X", &scaleX, -1.0f, 1.0f);
+            ImGui::SliderFloat("scale Y", &scaleY, -1.0f, 1.0f);
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::End();
+        }
+
+        // Rendering
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
@@ -360,6 +457,10 @@ int main(void)
         glfwPollEvents();
         dt += 1.0f/60.0f;
     }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glDeleteTextures(1, &texture);
     glDeleteProgram(glProgram);
