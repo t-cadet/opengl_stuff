@@ -398,8 +398,8 @@ int main(void)
     assert(uTextureLocation != -1);
     glUniform1i(uTextureLocation, textureSlot);
 
-    float scaleX = 0.0;
-    float scaleY = 0.0;
+    float scaleX = 1.0;
+    float scaleY = -1.0;
     int uMvpLocation = glGetUniformLocation(glProgram, "uMvp");
     assert(uMvpLocation != -1);
 
@@ -429,7 +429,16 @@ int main(void)
             0.0          , 0.0          , 0.0, 2.0,
         };
         glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp[0]);
+        GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
+
+        float mvp2[16] = {
+            1.5f - scaleX, 0.0          , 0.0, 0.0,
+            0.0          , 2.0f - scaleY, 0.0, 0.0,
+            0.0          , 0.0          , 0.75,0.0,
+            0.0          , 0.0          , 0.0, 1.0,
+        };
+        glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp2[0]);
         GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
         // Start the Dear ImGui frame
