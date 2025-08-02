@@ -305,7 +305,7 @@ int main(void)
     if (!glfwInit())
         return -1;
 
-    const char* glsl_version = "#version 130";
+    const char* glsl_version = "#version 400";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -354,15 +354,15 @@ int main(void)
     imguiDemoState.io = &io;
 
     float positions[] = {
-        -0.8, +0.1, 0.0, 1.0,
-        -0.8, -0.1, 0.0, 0.0,
-        -0.6, -0.1, 1.0, 0.0,
-        -0.6, +0.1, 1.0, 1.0,
+        -0.8, +0.1, 0.0, 1.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
+        -0.8, -0.1, 0.0, 0.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
+        -0.6, -0.1, 1.0, 0.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
+        -0.6, +0.1, 1.0, 1.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
 
-        +0.6, +0.1, 0.0, 1.0,
-        +0.6, -0.1, 0.0, 0.0,
-        +0.8, -0.1, 1.0, 0.0,
-        +0.8, +0.1, 1.0, 1.0,
+        +0.6, +0.1, 0.0, 1.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
+        +0.6, -0.1, 0.0, 0.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
+        +0.8, -0.1, 1.0, 0.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
+        +0.8, +0.1, 1.0, 1.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
     };
 
     unsigned int indices[] = {
@@ -378,6 +378,8 @@ int main(void)
     EnableGlVertexAttribArray({
         {GL_FLOAT, 2},
         {GL_FLOAT, 2},
+        {GL_FLOAT, 4},
+        {GL_FLOAT, 1},
     });
 
     unsigned int indexBuffer = CreateGlBuffer(indices, GL_ELEMENT_ARRAY_BUFFER);
@@ -392,16 +394,25 @@ int main(void)
     // assert(uColorLocation != -1);
 
     stbi_set_flip_vertically_on_load(1);
+    unsigned int textureSlot = 1;
+    unsigned int textures[3] = {};
+
     Image img = ReadImage("logo.jpg");
-
-    unsigned int textureSlot = 0;
-    unsigned int texture = LoadGlTexture(img, textureSlot);
-    assert(texture > 0);
+    textures[textureSlot] = LoadGlTexture(img, textureSlot);
+    assert(textures[textureSlot] > 0);
     FreeImage(img);
+    textureSlot++;
 
-    int uTextureLocation = glGetUniformLocation(glProgram, "uTexture");
-    assert(uTextureLocation != -1);
-    glUniform1i(uTextureLocation, textureSlot);
+    textureSlot = 2;
+    img = ReadImage("img2.jpeg");
+    textures[textureSlot] = LoadGlTexture(img, textureSlot);
+    assert(textures[textureSlot] > 0);
+    FreeImage(img);
+    textureSlot++;
+
+    int uTexturesLocation = glGetUniformLocation(glProgram, "uTextures");
+    assert(uTexturesLocation != -1);
+    glUniform1iv(uTexturesLocation, 2, (int*)textures);
 
     float scaleX = 1.0;
     float scaleY = 1.0;
@@ -475,7 +486,7 @@ int main(void)
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    glDeleteTextures(1, &texture);
+    glDeleteTextures(sizeof(textures)/sizeof(textures[0]), textures);
     glDeleteProgram(glProgram);
 
     glfwTerminate();
