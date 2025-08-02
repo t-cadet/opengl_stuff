@@ -354,15 +354,20 @@ int main(void)
     imguiDemoState.io = &io;
 
     float positions[] = {
-        -0.5, +0.5, 0.0, 1.0,
-        -0.5, -0.5, 0.0, 0.0,
-        +0.5, -0.5, 1.0, 0.0,
-        +0.5, +0.5, 1.0, 1.0,
+        -0.8, +0.1, 0.0, 1.0,
+        -0.8, -0.1, 0.0, 0.0,
+        -0.6, -0.1, 1.0, 0.0,
+        -0.6, +0.1, 1.0, 1.0,
+
+        +0.6, +0.1, 0.0, 1.0,
+        +0.6, -0.1, 0.0, 0.0,
+        +0.8, -0.1, 1.0, 0.0,
+        +0.8, +0.1, 1.0, 1.0,
     };
 
     unsigned int indices[] = {
-        0, 1, 2,
-        2, 3, 0,
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4,
     };
 
     glEnable(GL_BLEND);
@@ -399,7 +404,7 @@ int main(void)
     glUniform1i(uTextureLocation, textureSlot);
 
     float scaleX = 1.0;
-    float scaleY = -1.0;
+    float scaleY = 1.0;
     int uMvpLocation = glGetUniformLocation(glProgram, "uMvp");
     assert(uMvpLocation != -1);
 
@@ -429,17 +434,16 @@ int main(void)
             0.0          , 0.0          , 0.0, 2.0,
         };
         glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp[0]);
-        GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+        GL_CHECK(glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, nullptr));
 
-
-        float mvp2[16] = {
-            1.5f - scaleX, 0.0          , 0.0, 0.0,
-            0.0          , 2.0f - scaleY, 0.0, 0.0,
-            0.0          , 0.0          , 0.75,0.0,
-            0.0          , 0.0          , 0.0, 1.0,
-        };
-        glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp2[0]);
-        GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+        // float mvp2[16] = {
+        //     1.5f - scaleX, 0.0          , 0.0, 0.0,
+        //     0.0          , 2.0f - scaleY, 0.0, 0.0,
+        //     0.0          , 0.0          , 0.75,0.0,
+        //     0.0          , 0.0          , 0.0, 1.0,
+        // };
+        // glUniformMatrix4fv(uMvpLocation, 1, 0, &mvp2[0]);
+        // GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
