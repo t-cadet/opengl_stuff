@@ -40,6 +40,24 @@ struct ImguiDemoState {
     ImGuiIO* io;
 };
 
+struct Color { float r, g, b, a; };
+struct Vertex {
+    float x, y;
+    float u, v;
+    Color color;
+    float texID;
+};
+struct Quad { Vertex tl, tr, br, bl; };
+
+Quad CreateQuad(float x, float y, float size, Color color, float texID) {
+    Quad r = {};
+    r.tl = {x     , y     , 0.0, 1.0, color, texID};
+    r.tr = {x+size, y     , 1.0, 1.0, color, texID};
+    r.br = {x+size, y-size, 1.0, 0.0, color, texID};
+    r.bl = {x     , y-size, 0.0, 0.0, color, texID};
+    return r;
+}
+
 Image ReadImage(const char* path) {
     Image img = {};
     img.data = stbi_load(path, &img.w, &img.h, &img.channels, 0);
@@ -222,14 +240,14 @@ unsigned int CreateGlVertexArray() {
     return va;
 }
 
-unsigned int CreateGlBufferEx(void* data, size_t byteSize, GLenum target) {
+unsigned int CreateGlBufferEx(void* data, size_t byteSize, GLenum target, GLenum dynamic) {
     unsigned int buffer;
     glGenBuffers(1, &buffer);
     glBindBuffer(target, buffer);
-    glBufferData(target, byteSize, data, GL_STATIC_DRAW);
+    glBufferData(target, byteSize, data, dynamic);
     return buffer;
 }
-#define CreateGlBuffer(data, target) CreateGlBufferEx(data, sizeof(data), target)
+#define CreateGlBuffer(data, target, dynamic) CreateGlBufferEx(data, sizeof(data), target, dynamic)
 
 unsigned int GetGlTypeSize(unsigned int glType) {
     unsigned int glTypeSize = 0;
@@ -353,28 +371,24 @@ int main(void)
     imguiDemoState.clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     imguiDemoState.io = &io;
 
-    float positions[] = {
-        -0.8, +0.1, 0.0, 1.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
-        -0.8, -0.1, 0.0, 0.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
-        -0.6, -0.1, 1.0, 0.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
-        -0.6, +0.1, 1.0, 1.0, 0.18f, 0.6f, 0.96f, 1.0f, 0.0f,
+    Color color1 = {0.18f, 0.6f, 0.96f, 1.0f};
+    Color color2 = {0.96f, 0.6f, 0.18f, 1.0f};
 
-        +0.6, +0.1, 0.0, 1.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
-        +0.6, -0.1, 0.0, 0.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
-        +0.8, -0.1, 1.0, 0.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
-        +0.8, +0.1, 1.0, 1.0, 0.96f, 0.6f, 0.18f, 1.0f, 1.0f,
+    Quad vertices[] = {
+        CreateQuad(-0.8, +0.1, 0.2, color1, 0.0f),
+        CreateQuad(+0.6, +0.1, 0.2, color2, 1.0f),
     };
 
     unsigned int indices[] = {
-        0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4,
+        0, 1, 3, 1, 2, 3,
+        4, 5, 7, 7, 5, 6,
     };
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     unsigned int va = CreateGlVertexArray();
-    unsigned int vertexBuffer = CreateGlBuffer(positions, GL_ARRAY_BUFFER);
+    unsigned int vertexBuffer = CreateGlBuffer(vertices, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
     EnableGlVertexAttribArray({
         {GL_FLOAT, 2},
         {GL_FLOAT, 2},
@@ -382,7 +396,7 @@ int main(void)
         {GL_FLOAT, 1},
     });
 
-    unsigned int indexBuffer = CreateGlBuffer(indices, GL_ELEMENT_ARRAY_BUFFER);
+    unsigned int indexBuffer = CreateGlBuffer(indices, GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
 
     string vertexShaderSource = ReadFile("vertexShader.glsl");
     string fragmentShaderSource = ReadFile("fragmentShader.glsl");
@@ -437,6 +451,10 @@ int main(void)
         glBindVertexArray(va);
         glUseProgram(glProgram);
         // glUniform4f(uColorLocation, sinDt1, sinDt2, sinDt3, 1.0f);
+
+        vertices[0] = CreateQuad(-0.8, 0.6-sinDt2, 0.2, color1, 0.0f);
+        vertices[1] = CreateQuad(+0.6, 0.6-sinDt2, 0.2, color2, 1.0f);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
         float mvp[16] = {
             1.5f + scaleX, 0.0          , 0.0, 0.0,
