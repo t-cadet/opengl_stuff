@@ -10,3 +10,7 @@ A repo to put code related to OpenGL experiments and tutorials.
 nix-shell
 make
 ```
+
+# Gallery
+
+![screenshot1](gallery/screenshot1.png)
